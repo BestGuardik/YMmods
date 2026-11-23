@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ChromaSync Mobile</title>
+<style>
+  :root {
+    --bg: #060608; --accent: #d4b46a; --glow: rgba(212,180,106,0.32);
+    --glow-op: 0.40; --glass: rgba(255,255,255,0.06); --border: rgba(255,255,255,0.09);
+    --radius: 24px; --text: #f4f4f6; --sub: rgba(244,244,246,0.5);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, sans-serif; -webkit-tap-highlight-color: transparent; }
+  body { background: #020203; color: var(--text); height: 100vh; overflow: hidden; }
+  .phone { position: relative; width: 100vw; height: 100vh; background: var(--bg); overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; transition: background 0.5s; }
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  #pCanvas { z-index: 1; } #vCanvas { z-index: 2; }
+  .glow { position: absolute; top: 32%; left: 50%; width: 340px; height: 340px; transform: translate(-50%,-50%); background: radial-gradient(circle, var(--glow) 0%, transparent 72%); filter: blur(55px); opacity: var(--glow-op); z-index: 1; pointer-events: none; transition: 0.4s; }
+  .top { position: relative; z-index: 10; display: flex; justify-content: space-between; align-items: center; padding: 38px 20px 10px; }
+  .badge { display: flex; align-items: center; gap: 8px; background: var(--glass); border: 1px solid var(--border); padding: 6px 12px; border-radius: 20px; font-size: 12px; color: var(--sub); backdrop-filter: blur(16px); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: #4ade80; box-shadow: 0 0 8px #4ade80; }
+  .top-btns { display: flex; gap: 8px; }
+  .btn-c { width: 38px; height: 38px; border-radius: 50%; background: var(--glass); border: 1px solid var(--border); color: var(--text); font-size: 15px; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(16px); }
+  .btn-c.active { border-color: var(--accent); color: var(--accent); background: rgba(255,255,255,0.14); }
+  .stage { position: relative; z-index: 5; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0 24px; }
+  .vibe-tag { font-size: 12px; color: var(--accent); opacity: 0.85; margin-bottom: 14px; }
+  .cover-box { position: relative; width: 240px; height: 240px; margin-bottom: 20px; perspective: 800px; transition: all 0.45s cubic-bezier(0.22,1,0.36,1); }
+  .phone.lyrics-open .vibe-tag { display: none; }
+  .phone.lyrics-open .cover-box { width: 82px; height: 82px; margin-bottom: 10px; }
+  .cover { width: 100%; height: 100%; border-radius: var(--radius); background: linear-gradient(135deg, #3a2436, #733956 50%, #16121c); border: 1px solid rgba(255,255,255,0.12); box-shadow: 0 18px 45px rgba(0,0,0,0.75); overflow: hidden; display: flex; align-items: center; justify-content: center; transition: border-radius 0.4s, transform 0.15s ease-out; }
+  .cover img { width: 100%; height: 100%; object-fit: cover; display: none; }
+  .info { text-align: center; margin-bottom: 14px; width: 100%; }
+  .title { font-size: 20px; font-weight: 700; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .artist { font-size: 14px; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .phone.lyrics-open .title { font-size: 16px; } .phone.lyrics-open .artist { font-size: 12px; }
+  .lyrics-box { display: none; width: 100%; height: 230px; margin: 4px 0 14px; overflow: hidden; position: relative; -webkit-mask-image: linear-gradient(to bottom, transparent, black 18%, black 82%, transparent); }
+  .phone.lyrics-open .lyrics-box { display: block; }
+  .lyrics-list { display: flex; flex-direction: column; gap: 14px; padding: 85px 6px; transition: transform 0.6s cubic-bezier(0.22,1,0.36,1); }
+  .line { font-size: 17px; font-weight: 600; text-align: center; line-height: 1.35; color: rgba(255,255,255,0.24); transition: all 0.5s; }
+  .lyrics-box.blur .line:not(.active) { filter: blur(1.4px); transform: scale(0.95); }
+  .line.active { color: #fff; filter: none !important; transform: scale(1.03); text-shadow: 0 0 16px var(--glow); }
+  .prog { width: 100%; max-width: 310px; margin-bottom: 18px; }
+  .bar { width: 100%; height: 4px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; margin-bottom: 6px; }
+  .fill { width: 0%; height: 100%; background: var(--accent); opacity: 0.85; transition: width 0.15s linear; }
+  .times { display: flex; justify-content: space-between; font-size: 11px; color: var(--sub); }
+  .controls { display: flex; align-items: center; gap: 20px; background: var(--glass); border: 1px solid var(--border); padding: 10px 24px; border-radius: 32px; backdrop-filter: blur(20px); transition: 0.35s; }
+  .c-btn { background: none; border: none; color: var(--text); font-size: 18px; opacity: 0.85; }
+  .c-btn.active { color: var(--accent); opacity: 1; }
+  .play { width: 48px; height: 48px; border-radius: 50%; background: var(--accent); color: #0b0b0e; font-size: 18px; opacity: 0.92; box-shadow: 0 4px 18px var(--glow); }
+  .waves { position: relative; z-index: 6; padding: 0 18px 28px; transition: 0.35s; }
+  .waves-row { display: flex; gap: 10px; overflow-x: auto; scrollbar-width: none; }
+  .chip { flex: 0 0 auto; padding: 8px 14px; border-radius: 16px; background: var(--glass); border: 1px solid var(--border); font-size: 12px; color: var(--sub); }
+  .chip.active { border-color: var(--accent); color: var(--text); background: rgba(255,255,255,0.1); }
+  .phone.zen .controls, .phone.zen .waves, .phone.zen .vibe-tag { opacity: 0; pointer-events: none; transform: translateY(12px); }
+  .drawer { position: absolute; inset: auto 0 0 0; z-index: 30; background: rgba(14,14,18,0.96); backdrop-filter: blur(30px); border-top: 1px solid rgba(255,255,255,0.12); border-radius: 28px 28px 0 0; padding: 18px 22px 30px; transform: translateY(105%); transition: transform 0.4s cubic-bezier(0.16,1,0.3,1); }
+  .drawer.open { transform: translateY(0); }
+  .d-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; font-weight: 600; font-size: 15px; }
+  .d-close { background: rgba(255,255,255,0.1); border: none; color: #fff; padding: 5px 12px; border-radius: 12px; font-size: 12px; }
+  .grp { margin-bottom: 13px; }
+  .lbl { display: flex; justify-content: space-between; font-size: 12px; color: var(--sub); margin-bottom: 6px; }
+  .grid4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 7px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 7px; }
+  .grid2 { display: grid; grid-template-columns: repeat(2,1fr); gap: 7px; }
+  .opt { padding: 8px 4px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.09); background: rgba(255,255,255,0.04); color: #fff; font-size: 11px; text-align: center; }
+  .opt.active { border-color: var(--accent); background: rgba(255,255,255,0.12); }
+  input[type="range"] { width: 100%; accent-color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="phone" id="app">
+  <canvas id="pCanvas"></canvas><canvas id="vCanvas"></canvas><div class="glow" id="glow"></div>
+  <div class="top">
+    <div class="badge" id="permBtn"><div class="dot"></div><span>ЯМ Мод • Подключить</span></div>
+    <div class="top-btns"><button class="btn-c" id="zenBtn">👁</button><button class="btn-c" id="cfgBtn">⚙</button></div>
+  </div>
+  <div class="stage">
+    <div class="vibe-tag">Моя волна • Без цензуры</div>
+    <div class="cover-box" id="coverBox"><div class="cover" id="cover"><img id="coverImg" alt=""></div></div>
+    <div class="info"><div class="title" id="title">Ожидание трека...</div><div class="artist" id="artist">Запустите Яндекс Музыку</div></div>
+    <div class="lyrics-box blur" id="lyricsBox"><div class="lyrics-list" id="lyricsList"></div></div>
+    <div class="prog"><div class="bar"><div class="fill" id="fill"></div></div><div class="times"><span id="curT">0:00</span><span id="durT">0:00</span></div></div>
+    <div class="controls">
+      <button class="c-btn" id="ymBtn" title="Открыть ЯМ">🎵</button>
+      <button class="c-btn" id="prevBtn">⏮</button>
+      <button class="c-btn play" id="playBtn">▶</button>
+      <button class="c-btn" id="nextBtn">⏭</button>
+      <button class="c-btn" id="lyrBtn">≡</button>
+    </div>
+  </div>
+  <div class="waves"><div class="waves-row"><div class="chip active">✦ Авто-цвет обложки</div><div class="chip" id="grantChip">⚙ Доступ к уведомлениям</div></div></div>
+  <div class="drawer" id="drawer">
+    <div class="d-head"><span>Вариации кастома</span><button class="d-close" id="closeBtn">Готово</button></div>
+    <div class="grp"><div class="lbl"><span>Палитра</span></div><div class="grid4"><button class="opt active" data-t="auto">Авто</button><button class="opt" data-t="amber">Дым</button><button class="opt" data-t="glass">Стекло</button><button class="opt" data-t="neon">Неон</button></div></div>
+    <div class="grp"><div class="lbl"><span>Форма обложки</span></div><div class="grid3"><button class="opt active" data-s="24px">Мягкий</button><button class="opt" data-s="50%">Круг</button><button class="opt" data-s="8px">Острый</button></div></div>
+    <div class="grp"><div class="lbl"><span>Аудио-волны (плавные)</span></div><div class="grid3"><button class="opt active" data-v="radial">Корона</button><button class="opt" data-v="bars">Низ</button><button class="opt" data-v="none">Выкл</button></div></div>
+    <div class="grp"><div class="lbl"><span>Текст песни</span></div><div class="grid2"><button class="opt active" data-l="blur">Караоке (блюр)</button><button class="opt" data-l="clean">Чёткий</button></div></div>
+    <div class="grp"><div class="lbl"><span>Яркость тумана</span><span id="gVal">40%</span></div><input type="range" id="gRange" min="0" max="75" value="40"></div>
+    <div class="grp"><div class="lbl"><span>Частицы</span><span id="pVal">30</span></div><input type="range" id="pRange" min="0" max="80" value="30"></div>
+  </div>
+</div>
+<script>
+  const app = document.getElementById('app'), root = document.documentElement, cover = document.getElementById('cover'), coverImg = document.getElementById('coverImg'), coverBox = document.getElementById('coverBox'), glow = document.getElementById('glow'), drawer = document.getElementById('drawer'), lyricsBox = document.getElementById('lyricsBox'), lyricsList = document.getElementById('lyricsList'), lyrBtn = document.getElementById('lyrBtn');
+  let playing = false, viz = 'radial', pCount = 30, phase = 0, themeMode = 'auto', autoAccent = '#d4b46a', nativeBass = 0, lastTrackKey = '', syncedLyrics = [];
+  const smooth = new Array(64).fill(2);
+
+  const themes = {
+    amber: { bg: '#060604', acc: '#d4b46a', gl: 'rgba(212,180,106,0.32)' },
+    glass: { bg: '#050608', acc: '#cbd5e1', gl: 'rgba(148,163,184,0.24)' },
+    neon:  { bg: '#06040a', acc: '#c084fc', gl: 'rgba(192,132,252,0.32)' }
+  };
+
+  function hexToRgba(hex, a) {
+    const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+    return `rgba(${r},${g},${b},${a})`;
+  }
+
+  function applyTheme() {
+    if (themeMode === 'auto') {
+      root.style.setProperty('--bg', '#050507');
+      root.style.setProperty('--accent', autoAccent);
+      root.style.setProperty('--glow', hexToRgba(autoAccent, 0.34));
+    } else {
+      const th = themes[themeMode];
+      root.style.setProperty('--bg', th.bg);
+      root.style.setProperty('--accent', th.acc);
+      root.style.setProperty('--glow', th.gl);
+    }
+  }
+
+  function fmtTime(ms) {
+    const s = Math.floor((ms || 0) / 1000);
+    return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+  }
+
+  async function fetchLyrics(title, artist) {
+    lyricsList.innerHTML = '<div class="line active">Загрузка текста...</div>';
+    syncedLyrics = [];
+    try {
+      const res = await fetch(`https://lrclib.net/api/get?artist_name=${encodeURIComponent(artist)}&track_name=${encodeURIComponent(title)}`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      if (data.syncedLyrics) {
+        syncedLyrics = data.syncedLyrics.split('\n').map(line => {
+          const m = line.match(/\[(\d+):(\d+\.\d+)\](.*)/);
+          if (!m) return null;
+          return { time: (parseInt(m[1])*60 + parseFloat(m[2])) * 1000, text: m[3].trim() };
+        }).filter(x => x && x.text);
+        lyricsList.innerHTML = syncedLyrics.map((l, i) => `<div class="line" data-i="${i}">${l.text}</div>`).join('');
+      } else if (data.plainLyrics) {
+        lyricsList.innerHTML = data.plainLyrics.split('\n').map(t => `<div class="line active">${t}</div>`).join('');
+      } else {
+        lyricsList.innerHTML = '<div class="line active">Текст не найден</div>';
+      }
+    } catch {
+      lyricsList.innerHTML = '<div class="line active">Текст недоступен для этого трека</div>';
+    }
+  }
+
+  window.onNativeTrackUpdate = function(d) {
+    document.getElementById('title').textContent = d.title;
+    document.getElementById('artist').textContent = d.artist;
+    playing = d.playing;
+    document.getElementById('playBtn').textContent = playing ? '⏸' : '▶';
+    document.getElementById('curT').textContent = fmtTime(d.position);
+    document.getElementById('durT').textContent = fmtTime(d.duration);
+    const pct = d.duration > 0 ? Math.min(100, (d.position / d.duration) * 100) : 0;
+    document.getElementById('fill').style.width = pct + '%';
+
+    if (d.cover) {
+      coverImg.src = d.cover;
+      coverImg.style.display = 'block';
+    }
+    if (d.accent) {
+      autoAccent = d.accent;
+      if (themeMode === 'auto') applyTheme();
+    }
+
+    const key = `${d.title}__${d.artist}`;
+    if (key !== lastTrackKey && d.title !== 'Ожидание трека...') {
+      lastTrackKey = key;
+      fetchLyrics(d.title, d.artist);
+    }
+
+    if (syncedLyrics.length > 0) {
+      let activeIdx = 0;
+      for (let i = 0; i < syncedLyrics.length; i++) {
+        if (d.position >= syncedLyrics[i].time) activeIdx = i;
+      }
+      const els = lyricsList.querySelectorAll('.line');
+      els.forEach((el, i) => el.classList.toggle('active', i === activeIdx));
+      if (els[activeIdx]) lyricsList.style.transform = `translateY(${-(els[activeIdx].offsetTop - 85)}px)`;
+    }
+  };
+
+  window.onNativeAudioLevel = function(lvl) {
+    nativeBass = lvl;
+  };
+
+  document.getElementById('playBtn').onclick = () => window.AndroidBridge && AndroidBridge.playPause();
+  document.getElementById('nextBtn').onclick = () => window.AndroidBridge && AndroidBridge.next();
+  document.getElementById('prevBtn').onclick = () => window.AndroidBridge && AndroidBridge.prev();
+  document.getElementById('ymBtn').onclick = () => window.AndroidBridge && AndroidBridge.openYandexMusic();
+  document.getElementById('grantChip').onclick = () => window.AndroidBridge && AndroidBridge.openNotificationSettings();
+  document.getElementById('permBtn').onclick = () => window.AndroidBridge && AndroidBridge.openNotificationSettings();
+
+  lyrBtn.onclick = () => { app.classList.toggle('lyrics-open'); lyrBtn.classList.toggle('active'); };
+  document.getElementById('cfgBtn').onclick = () => drawer.classList.add('open');
+  document.getElementById('closeBtn').onclick = () => drawer.classList.remove('open');
+  document.getElementById('zenBtn').onclick = function() { app.classList.toggle('zen'); this.classList.toggle('active'); };
+
+  document.querySelectorAll('[data-t]').forEach(b => b.onclick = () => {
+    document.querySelectorAll('[data-t]').forEach(x => x.classList.remove('active')); b.classList.add('active');
+    themeMode = b.dataset.t; applyTheme();
+  });
+  document.querySelectorAll('[data-s]').forEach(b => b.onclick = () => {
+    document.querySelectorAll('[data-s]').forEach(x => x.classList.remove('active')); b.classList.add('active');
+    root.style.setProperty('--radius', b.dataset.s);
+  });
+  document.querySelectorAll('[data-v]').forEach(b => b.onclick = () => {
+    document.querySelectorAll('[data-v]').forEach(x => x.classList.remove('active')); b.classList.add('active');
+    viz = b.dataset.v;
+  });
+  document.querySelectorAll('[data-l]').forEach(b => b.onclick = () => {
+    document.querySelectorAll('[data-l]').forEach(x => x.classList.remove('active')); b.classList.add('active');
+    lyricsBox.classList.toggle('blur', b.dataset.l === 'blur');
+  });
+  document.getElementById('gRange').oninput = function() { document.getElementById('gVal').textContent = this.value + '%'; root.style.setProperty('--glow-op', this.value / 100); };
+  document.getElementById('pRange').oninput = function() { pCount = +this.value; document.getElementById('pVal').textContent = pCount; initP(); };
+
+  const pc = document.getElementById('pCanvas'), pctx = pc.getContext('2d'), vc = document.getElementById('vCanvas'), vctx = vc.getContext('2d');
+  let pts = [];
+  function resize() { pc.width = vc.width = app.clientWidth; pc.height = vc.height = app.clientHeight; }
+  window.onresize = resize; resize();
+  function initP() { pts = Array.from({ length: pCount }, () => ({ x: Math.random() * pc.width, y: Math.random() * pc.height, r: Math.random() * 1.8 + 0.7, vx: (Math.random() - 0.5) * 0.2, vy: Math.random() * 0.25 + 0.1, a: Math.random() * 0.35 + 0.12 })); }
+  initP();
+
+  function loop() {
+    pctx.clearRect(0, 0, pc.width, pc.height); vctx.clearRect(0, 0, vc.width, vc.height);
+    const acc = getComputedStyle(root).getPropertyValue('--accent').trim();
+    if (playing) phase += 0.03;
+    const level = playing ? Math.max(nativeBass, (Math.sin(phase) * 0.5 + 0.5) * 0.45) : 0.05;
+    glow.style.transform = `translate(-50%, -50%) scale(${1 + level * 0.12})`;
+
+    pts.forEach(p => {
+      p.x += p.vx; p.y += p.vy;
+      if (p.y > pc.height) { p.y = -5; p.x = Math.random() * pc.width; }
+      if (p.x < 0) p.x = pc.width; if (p.x > pc.width) p.x = 0;
+      pctx.beginPath(); pctx.arc(p.x, p.y, p.r, 0, 6.28); pctx.fillStyle = acc; pctx.globalAlpha = p.a; pctx.fill();
+    });
+    pctx.globalAlpha = 1;
+
+    if (viz === 'radial' && !app.classList.contains('lyrics-open')) {
+      const r = coverBox.getBoundingClientRect(), ar = app.getBoundingClientRect(), cx = r.left - ar.left + r.width / 2, cy = r.top - ar.top + r.height / 2, rad = r.width / 2 + 8;
+      vctx.strokeStyle = acc; vctx.lineWidth = 2; vctx.lineCap = 'round';
+      for (let i = 0; i < 64; i++) {
+        const tgt = playing ? (Math.sin(i * 0.25 + phase * 1.3) * 0.5 + 0.5) * 18 * level + 2.5 : 2;
+        smooth[i] += (tgt - smooth[i]) * 0.08;
+        const ang = (i / 64) * 6.283;
+        vctx.beginPath(); vctx.moveTo(cx + Math.cos(ang) * rad, cy + Math.sin(ang) * rad);
+        vctx.lineTo(cx + Math.cos(ang) * (rad + smooth[i]), cy + Math.sin(ang) * (rad + smooth[i]));
+        vctx.globalAlpha = 0.28; vctx.stroke();
+      }
+      vctx.globalAlpha = 1;
+    } else if (viz === 'bars') {
+      const bw = vc.width / 32; vctx.fillStyle = acc;
+      for (let i = 0; i < 32; i++) {
+        const tgt = playing ? (Math.cos(i * 0.22 - phase * 1.1) * 0.5 + 0.5) * 48 * level + 4 : 3;
+        smooth[i] += (tgt - smooth[i]) * 0.08;
+        vctx.globalAlpha = 0.14; vctx.fillRect(i * bw + 2, vc.height - smooth[i], bw - 4, smooth[i]);
+      }
+      vctx.globalAlpha = 1;
+    }
+    requestAnimationFrame(loop);
+  }
+  loop();
+</script>
+</body>
+</html>
